@@ -50,10 +50,16 @@ class Runner:
         while True:
             sleep(1)
             if self.DISCORD_PIPE.poll():
-                self.SLACK_PIPE.send(self.DISCORD_PIPE.recv())
+                msg = self.DISCORD_PIPE.recv()
+
+                if len(msg) > 0:
+                    self.SLACK_PIPE.send(msg)
 
             if self.SLACK_PIPE.poll():
-                self.DISCORD_PIPE.send(self.SLACK_PIPE.recv())
+                msg = self.DISCORD_PIPE.recv()
+
+                if len(msg) > 0:
+                    self.DISCORD_PIPE.send(self.SLACK_PIPE.recv())
 
             
     def run_discord_bot(self):
