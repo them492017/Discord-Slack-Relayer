@@ -3,73 +3,79 @@
 # Dealing with all types of mentions.
 # Dealing with edit/delete and syncing with Slack.
 # Dealing with reply and thread.
-import requests
-import json
-from typing import *
+from typing import Any, TYPE_CHECKING
 
 import discord
 from discord.ext import tasks
 
-from config import CONFIG
+import config
+
+if TYPE_CHECKING:
+    from multiprocessing.connection import Connection
+
 
 # Task that will be executed periodically.
 # Docs: https://discordpy.readthedocs.io/en/latest/ext/tasks/index.html
 # Poll for messages then relay to Discord.
 @tasks.loop(seconds=2.0)
-async def poll_msg(pipe: 'Pipe', discord_client: 'MyClient'):
+async def poll_msg(pipe: Connection, discord_client: 'MyClient') -> None:
     if not pipe.poll():
         return
     msg = pipe.recv()
     await discord_client.relay_msg(msg["content"], msg["channel"])
 
+
 # Docs for Discord py: https://discordpy.readthedocs.io/en/stable/
 class MyClient(discord.Client):
     # This is for mention mapping.
     # Map from Discord's username to Slack's id
-    USER_MAP: Dict[str, str] = CONFIG["DISCORD_SLACK_USER_MAP"]
+    USER_MAP: dict[str, str] = config.DISCORD_SLACK_USER_MAP
     # Map from Discord's username to initial.
     # Used to point to the correct bot.
-    NAME_INITIAL_MAP: Dict[str, str] = CONFIG["DISCORD_NAME_INITIAL_MAP"]
+    NAME_INITIAL_MAP: dict[str, str] = config.DISCORD_NAME_INITIAL_MAP
     # # The channel the messages are to be relayed from Slack to Discord.
-    # # If we want to have multiple channels then we can define a mapping 
+    # # If we want to have multiple channels then we can define a mapping
     # # between channels.
-    # RELEVANT_CHANNEL_ID = CONFIG["DISCORD_RELEVANT_CHANNEL_ID"]
-    CHANNEL_MAP: Dict[str, str] = CONFIG["CHANNEL_MAP"]
-    
-    def __init__(self, pipe,  **kwargs):
+    # RELEVANT_CHANNEL_ID = config.DISCORD_RELEVANT_CHANNEL_ID
+    SLACK_CHANNEL_MAP: dict[str, int] = config.SLACK_CHANNEL_MAP
+
+    def __init__(self, pipe: Connection, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         # Relevant channel to relay messages from Slack
         # Prob general idk
-        self.relevant_channels = {}
+        self.relevant_channels: dict[str, discord.TextChannel] = {}
         self.pipe = pipe
 
     # This is for cosmetics.
-    async def on_ready(self):
+    async def on_ready(self) -> None:
         print(f'Logged on as {self.user}!')
 
     # Function that runs whenever a message is sent.
-    async def on_message(self, message: discord.Message):
-
+    async def on_message(self, message: discord.Message) -> None:
         if (message.author == self.user):
             return
 
         # print(message.attachments)
         new_msg = self.mention_replace(message)
         sender = self.NAME_INITIAL_MAP[message.author.name]
-        channel_name = message.channel.name
-        self.pipe.send(
-            {
-                "content": new_msg,
-                "sender": sender,
-                "channel": channel_name
-            }
-        )
+        if isinstance(message.channel, discord.TextChannel):
+            # TODO: find more efficient way of checking if it is a text channel
+            # else ignore?
+            channel_name = message.channel.name
+            self.pipe.send(
+                {
+                    "content": new_msg,
+                    "sender": sender,
+                    "channel": channel_name
+                }
+            )
 
-    async def relay_msg(self, msg: str, channel_id: str):
-        channel_id = self.CHANNEL_MAP[channel_id]
+    async def relay_msg(self, msg: str, channel_id: str) -> None:
+        mapped_id = self.SLACK_CHANNEL_MAP[channel_id]
         if channel_id not in self.relevant_channels:
-            channel = await self.fetch_channel(channel_id)
-            self.relevant_channels[channel_id] = channel
+            channel = await self.fetch_channel(mapped_id)
+            if isinstance(channel, discord.TextChannel):
+                self.relevant_channels[channel_id] = channel
 
         await self.relevant_channels[channel_id].send(
             content=msg
@@ -96,8 +102,7 @@ class MyClient(discord.Client):
         return msg_str
 
 
-
-def init_bot(pipe) -> MyClient:
+def init_bot(pipe: Connection) -> MyClient:
     intents = discord.Intents.default()
     intents.message_content = True
     client = MyClient(pipe, intents=intents)
