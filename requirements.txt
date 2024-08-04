@@ -9,6 +9,7 @@ discord.py==2.4.0
 frozenlist==1.4.1
 idna==3.7
 multidict==6.0.5
+python-dotenv==1.0.1
 requests==2.32.3
 slack_bolt==1.19.1
 slack_sdk==3.31.0

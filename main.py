@@ -3,6 +3,7 @@ from multiprocessing import Process, Pipe
 import asyncio
 from time import sleep
 
+from dotenv import load_dotenv
 from discord_bot import init_bot
 from slack_bot import run_app
 
@@ -98,5 +99,7 @@ class Runner:
 
 
 if __name__ == "__main__":
+    load_dotenv()
+    print(os.environ.get("SLACK_SOCKET_TOKEN"))
     runner = Runner()
     runner.start()

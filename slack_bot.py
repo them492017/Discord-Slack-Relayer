@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any, TYPE_CHECKING
 import asyncio
 
@@ -21,7 +19,7 @@ SLACK_USERID_NAME_MAP = config.SLACK_USERID_NAME_MAP
 # All the async code was kinda taken from this Github issue.
 # https://github.com/slackapi/bolt-python/issues/592#issuecomment-1042368085
 async def run_app(
-    pipe: Connection,
+    pipe: 'Connection',
     bot_tokens: dict[str, str],
     signing_secret: str,
     socket_token: str

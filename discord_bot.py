@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 # Docs: https://discordpy.readthedocs.io/en/latest/ext/tasks/index.html
 # Poll for messages then relay to Discord.
 @tasks.loop(seconds=2.0)
-async def poll_msg(pipe: Connection, discord_client: 'MyClient') -> None:
+async def poll_msg(pipe: 'Connection', discord_client: 'MyClient') -> None:
     if not pipe.poll():
         return
     msg = pipe.recv()
@@ -39,7 +39,7 @@ class MyClient(discord.Client):
     # RELEVANT_CHANNEL_ID = config.DISCORD_RELEVANT_CHANNEL_ID
     SLACK_CHANNEL_MAP: dict[str, int] = config.SLACK_CHANNEL_MAP
 
-    def __init__(self, pipe: Connection, **kwargs: Any) -> None:
+    def __init__(self, pipe: 'Connection', **kwargs: Any) -> None:
         super().__init__(**kwargs)
         # Relevant channel to relay messages from Slack
         # Prob general idk
@@ -102,7 +102,7 @@ class MyClient(discord.Client):
         return msg_str
 
 
-def init_bot(pipe: Connection) -> MyClient:
+def init_bot(pipe: 'Connection') -> MyClient:
     intents = discord.Intents.default()
     intents.message_content = True
     client = MyClient(pipe, intents=intents)
