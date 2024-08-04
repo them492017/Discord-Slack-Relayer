@@ -100,6 +100,5 @@ class Runner:
 
 if __name__ == "__main__":
     load_dotenv()
-    print(os.environ.get("SLACK_SOCKET_TOKEN"))
     runner = Runner()
     runner.start()

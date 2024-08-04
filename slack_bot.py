@@ -72,8 +72,8 @@ async def poll_msg(pipe: 'Connection', clients: dict[str, WebClient]) -> None:
         # https://slack.dev/python-slack-sdk/web/index.html#messaging
         message = pipe.recv()
         sender = message["sender"]
-        channel = message["channel"]
+        channel_id = message["channel"]
         clients[sender].chat_postMessage(  # type: ignore
-            channel=DISCORD_CHANNEL_MAP[f"{channel}_discord"],
+            channel=DISCORD_CHANNEL_MAP[channel_id],
             text=message["content"]
         )

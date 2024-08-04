@@ -158,4 +158,4 @@ cython_debug/
 
 my_env.sh
 bot-env
-config.py
+config.py.template

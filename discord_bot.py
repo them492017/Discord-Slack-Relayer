@@ -58,24 +58,27 @@ class MyClient(discord.Client):
         # print(message.attachments)
         new_msg = self.mention_replace(message)
         sender = self.NAME_INITIAL_MAP[message.author.name]
-        if isinstance(message.channel, discord.TextChannel):
-            # TODO: find more efficient way of checking if it is a text channel
-            # else ignore?
-            channel_name = message.channel.name
-            self.pipe.send(
-                {
-                    "content": new_msg,
-                    "sender": sender,
-                    "channel": channel_name
-                }
-            )
+        channel_id = message.channel.id
+        self.pipe.send(
+            {
+                "content": new_msg,
+                "sender": sender,
+                "channel": channel_id
+            }
+        )
 
     async def relay_msg(self, msg: str, channel_id: str) -> None:
+        if channel_id not in self.SLACK_CHANNEL_MAP:
+            return
+
         mapped_id = self.SLACK_CHANNEL_MAP[channel_id]
+
         if channel_id not in self.relevant_channels:
             channel = await self.fetch_channel(mapped_id)
-            if isinstance(channel, discord.TextChannel):
+            if isinstance(channel, discord.TextChannel):  # this should always hold
                 self.relevant_channels[channel_id] = channel
+            else:
+                return
 
         await self.relevant_channels[channel_id].send(
             content=msg
