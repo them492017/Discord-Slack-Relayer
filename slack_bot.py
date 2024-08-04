@@ -9,46 +9,57 @@ from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
 
 from config import CONFIG
 
-RELEVANT_CHANNEL_ID = CONFIG["SLACK_RELEVANT_CHANNEL_ID"]
+CHANNEL_MAP = CONFIG["CHANNEL_MAP"]
 TUTOR_ID = CONFIG["SLACK_TUTOR_ID"]
+SLACK_BOT_ID = CONFIG["SLACK_BOT_ID"]
+SLACK_USERID_NAME_MAP = CONFIG["SLACK_USERID_NAME_MAP"]
 
 # All the async code was kinda taken from this Github issue.
 # https://github.com/slackapi/bolt-python/issues/592#issuecomment-1042368085
 async def run_app(
         pipe, 
-        bot_token: str,
+        bot_tokens: Dict[str, str],
         signing_secret: str,
         socket_token: str
     ):
+    # client = WebClient(token=bot_token)
 
-    # global client
-    client = WebClient(token=bot_token)
+    CLIENTS = {
+        bot_name: WebClient(token=bot_tokens[bot_name]) for bot_name in bot_tokens
+    }
 
     app = AsyncApp(
-        token=bot_token,
+        token=bot_tokens["T"],
         signing_secret=signing_secret
     )
 
     @app.event("message")
     async def receive_messages(message, context):
         # If not from the tutor then don't relay to Discord.
-        if not context.user_id == TUTOR_ID:
+        if context.user_id in SLACK_BOT_ID:
             return
         
         # Possibly make it able to deal with attachments.
-        pipe.send(message["text"])
+        sender = SLACK_USERID_NAME_MAP[context.user_id]
+        content = f"{sender}: {message['text']}"
+        pipe.send(
+            {
+                "content": content[:1999],
+                "channel": context.channel_id
+            }
+        )
 
     handler = AsyncSocketModeHandler(
                 app, socket_token
-            )
+        )
     
-    asyncio.create_task(poll_msg(pipe, client))
+    asyncio.create_task(poll_msg(pipe, CLIENTS))
 
     await handler.start_async()
 
 # The background task.
 # Poll for messages and relay to Slack basically.
-async def poll_msg(pipe: "Pipe", client: WebClient):
+async def poll_msg(pipe: "Pipe", clients: WebClient):
     while True:
         await asyncio.sleep(2)
         if not pipe.poll():
@@ -56,7 +67,10 @@ async def poll_msg(pipe: "Pipe", client: WebClient):
         
         # Relevant Slack API docs
         # https://slack.dev/python-slack-sdk/web/index.html#messaging
-        client.chat_postMessage(
-            channel=RELEVANT_CHANNEL_ID,
-            text=pipe.recv()
+        message = pipe.recv() 
+        sender = message["sender"]
+        channel = message["channel"]
+        clients[sender].chat_postMessage(
+            channel=CHANNEL_MAP[f"{channel}_discord"],
+            text=message["content"]
         )

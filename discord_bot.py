@@ -19,24 +19,28 @@ from config import CONFIG
 async def poll_msg(pipe: 'Pipe', discord_client: 'MyClient'):
     if not pipe.poll():
         return
-    
-    await discord_client.relay_msg(pipe.recv())
+    msg = pipe.recv()
+    await discord_client.relay_msg(msg["content"], msg["channel"])
 
 # Docs for Discord py: https://discordpy.readthedocs.io/en/stable/
 class MyClient(discord.Client):
     # This is for mention mapping.
     # Map from Discord's username to Slack's id
     USER_MAP: Dict[str, str] = CONFIG["DISCORD_SLACK_USER_MAP"]
-    # The channel the messages are to be relayed from Slack to Discord.
-    # If we want to have multiple channels then we can define a mapping 
-    # between channels.
-    RELEVANT_CHANNEL_ID = CONFIG["DISCORD_RELEVANT_CHANNEL_ID"]
+    # Map from Discord's username to initial.
+    # Used to point to the correct bot.
+    NAME_INITIAL_MAP: Dict[str, str] = CONFIG["DISCORD_NAME_INITIAL_MAP"]
+    # # The channel the messages are to be relayed from Slack to Discord.
+    # # If we want to have multiple channels then we can define a mapping 
+    # # between channels.
+    # RELEVANT_CHANNEL_ID = CONFIG["DISCORD_RELEVANT_CHANNEL_ID"]
+    CHANNEL_MAP: Dict[str, str] = CONFIG["CHANNEL_MAP"]
     
     def __init__(self, pipe,  **kwargs):
         super().__init__(**kwargs)
         # Relevant channel to relay messages from Slack
         # Prob general idk
-        self.relevant_channel = None
+        self.relevant_channels = {}
         self.pipe = pipe
 
     # This is for cosmetics.
@@ -49,14 +53,25 @@ class MyClient(discord.Client):
         if (message.author == self.user):
             return
 
+        # print(message.attachments)
         new_msg = self.mention_replace(message)
-        self.pipe.send(new_msg)
+        sender = self.NAME_INITIAL_MAP[message.author.name]
+        channel_name = message.channel.name
+        self.pipe.send(
+            {
+                "content": new_msg,
+                "sender": sender,
+                "channel": channel_name
+            }
+        )
 
-    async def relay_msg(self, msg: str):
-        if self.relevant_channel is None:
-            self.relevant_channel = await self.fetch_channel(self.RELEVANT_CHANNEL_ID)
+    async def relay_msg(self, msg: str, channel_id: str):
+        channel_id = self.CHANNEL_MAP[channel_id]
+        if channel_id not in self.relevant_channels:
+            channel = await self.fetch_channel(channel_id)
+            self.relevant_channels[channel_id] = channel
 
-        await self.relevant_channel.send(
+        await self.relevant_channels[channel_id].send(
             content=msg
         )
 

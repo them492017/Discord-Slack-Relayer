@@ -20,7 +20,19 @@ class Runner:
         self._DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN")
 
         # Slack bot OAUTH token
-        self._SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
+        SLACK_TOKEN_ENV_VARS = [
+            "SLACK_BOT_TOKEN_T",
+            "SLACK_BOT_TOKEN_A",
+            "SLACK_BOT_TOKEN_M",
+            "SLACK_BOT_TOKEN_J",
+            "SLACK_BOT_TOKEN_W"
+        ]
+
+
+        self._SLACK_PEOPLE_TOKEN_MAP = {
+            name[-1]: os.environ.get(name) for name in SLACK_TOKEN_ENV_VARS
+        }
+
         # Slack bot signing secret
         self._SLACK_SIGNING_SECRET = os.environ.get("SLACK_SIGNING_SECRET")
         # Slack bot socket token
@@ -52,14 +64,14 @@ class Runner:
             if self.DISCORD_PIPE.poll():
                 msg = self.DISCORD_PIPE.recv()
 
-                if len(msg) > 0:
+                if len(msg["content"]) > 0:
                     self.SLACK_PIPE.send(msg)
 
             if self.SLACK_PIPE.poll():
-                msg = self.DISCORD_PIPE.recv()
+                msg = self.SLACK_PIPE.recv()
 
-                if len(msg) > 0:
-                    self.DISCORD_PIPE.send(self.SLACK_PIPE.recv())
+                if len(msg["content"]) > 0:
+                    self.DISCORD_PIPE.send(msg)
 
             
     def run_discord_bot(self):
@@ -68,7 +80,7 @@ class Runner:
     def run_slack_bot(self):
         asyncio.run(run_app(
             self.CHILD_SLACK_PIPE,
-            self._SLACK_BOT_TOKEN,
+            self._SLACK_PEOPLE_TOKEN_MAP,
             self._SLACK_SIGNING_SECRET,
             self._SLACK_SOCKET_TOKEN
         ))
