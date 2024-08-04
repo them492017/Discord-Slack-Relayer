@@ -72,6 +72,8 @@ class MyClient(discord.Client):
         msg_str = msg.content
 
         for user in mentions:
+            if user.name not in self.USER_MAP:
+                continue
             msg_str = msg_str.replace(
                 f"<@{user.id}>", f"<@{self.USER_MAP[user.name]}>"
             )
