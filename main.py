@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from discord_bot import init_bot
 from slack_bot import run_app
 
+import config
+
 
 class Runner:
     def __init__(self) -> None:
@@ -22,18 +24,9 @@ class Runner:
         else:
             raise ValueError("No discord token provided")
 
-        # Slack bot OAUTH token
-        SLACK_TOKEN_ENV_VARS = [
-            "SLACK_BOT_TOKEN_T",
-            "SLACK_BOT_TOKEN_A",
-            "SLACK_BOT_TOKEN_M",
-            "SLACK_BOT_TOKEN_J",
-            "SLACK_BOT_TOKEN_W"
-        ]
-
         self._SLACK_PEOPLE_TOKEN_MAP: dict[str, str] = {}
 
-        for name in SLACK_TOKEN_ENV_VARS:
+        for name in config.SLACK_TOKEN_ENV_VARS:
             if (mapped_name := os.environ.get(name)) is not None:
                 self._SLACK_PEOPLE_TOKEN_MAP[name[-1]] = mapped_name
             else:

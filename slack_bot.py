@@ -1,19 +1,17 @@
 from typing import Any, TYPE_CHECKING
+import os
 import asyncio
 
+from slack_bolt import BoltContext
 from slack_bolt.app.async_app import AsyncApp
 from slack_sdk import WebClient
 from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
 
 import config
+from pipe import recv_discord_msg, send_slack_msg
 
 if TYPE_CHECKING:
     from multiprocessing.connection import Connection
-
-DISCORD_CHANNEL_MAP = config.DISCORD_CHANNEL_MAP
-TUTOR_ID = config.SLACK_TUTOR_ID
-SLACK_BOT_ID = config.SLACK_BOT_ID
-SLACK_USERID_NAME_MAP = config.SLACK_USERID_NAME_MAP
 
 
 # All the async code was kinda taken from this Github issue.
@@ -24,36 +22,32 @@ async def run_app(
     signing_secret: str,
     socket_token: str
 ) -> None:
-    # client = WebClient(token=bot_token)
-
     CLIENTS = {
-        bot_name: WebClient(token=bot_tokens[bot_name]) for bot_name in bot_tokens
+        bot_name: WebClient(token=bot_tokens[bot_name])
+        for bot_name in bot_tokens
     }
 
     app = AsyncApp(
-        token=bot_tokens["T"],
+        token=os.environ.get("MAIN_SLACK_TOKEN"),
         signing_secret=signing_secret
     )
 
     @app.event("message")  # type: ignore
-    async def receive_messages(message: Any, context: Any) -> None:  # type: ignore
+    async def receive_messages(message: dict[str, Any], context: BoltContext) -> None:  # type: ignore
         # If not from the tutor then don't relay to Discord.
-        if context.user_id in SLACK_BOT_ID:
+        if context.user_id is None or context.user_id in config.SLACK_BOT_ID:
             return
 
         # Possibly make it able to deal with attachments.
-        sender = SLACK_USERID_NAME_MAP[context.user_id]
-        content = f"{sender}: {message['text']}"
-        pipe.send(
-            {
-                "content": content[:1999],
-                "channel": context.channel_id
-            }
-        )
+        send_slack_msg(pipe, {
+            "content": message['text'],
+            "sender_id": context.user_id,
+            "channel_id": context.channel_id or "",
+        })
 
     handler = AsyncSocketModeHandler(
-                app, socket_token
-        )
+        app, socket_token
+    )
 
     asyncio.create_task(poll_msg(pipe, CLIENTS))
 
@@ -65,15 +59,12 @@ async def run_app(
 async def poll_msg(pipe: 'Connection', clients: dict[str, WebClient]) -> None:
     while True:
         await asyncio.sleep(2)
-        if not pipe.poll():
-            continue
 
         # Relevant Slack API docs
         # https://slack.dev/python-slack-sdk/web/index.html#messaging
-        message = pipe.recv()
-        sender = message["sender"]
-        channel_id = message["channel"]
-        clients[sender].chat_postMessage(  # type: ignore
-            channel=DISCORD_CHANNEL_MAP[channel_id],
-            text=message["content"]
-        )
+        if (msg := recv_discord_msg(pipe)) is not None:
+            # assert len(msg['content']) < MAX_SLACK_MSG_LEN
+            clients[msg['sender']].chat_postMessage(  # type: ignore
+                channel=config.DISCORD_CHANNEL_MAP[msg['channel_id']],
+                text=msg['content']
+            )

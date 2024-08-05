@@ -2,16 +2,16 @@
 # SLACK_RELEVANT_CHANNEL_ID = "",
 SLACK_TUTOR_ID = "",
 
-DISCORD_SLACK_USER_MAP = {
-    "": "",
+DISCORD_USER_MAP = {
+    0: "",
 }
 
-DISCORD_NAME_INITIAL_MAP = {
-    "": "",
+SLACK_USER_MAP = {
+    "": 0,
 }
 
 DISCORD_CHANNEL_MAP = {
-    "": "",
+    0: "",
 }
 
 SLACK_CHANNEL_MAP = {
@@ -22,6 +22,6 @@ SLACK_BOT_ID = {
     "": True,
 }
 
-SLACK_USERID_NAME_MAP = {
-    "": "",
-}
+SLACK_TOKEN_ENV_VARS = [
+    "SLACK_BOT_TOKEN",
+]
