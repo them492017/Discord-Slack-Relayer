@@ -63,6 +63,8 @@ async def poll_msg(pipe: 'Connection', clients: dict[str, WebClient]) -> None:
         # Relevant Slack API docs
         # https://slack.dev/python-slack-sdk/web/index.html#messaging
         if (msg := recv_discord_msg(pipe)) is not None:
+            if len(msg) == 0:
+                continue
             # assert len(msg['content']) < MAX_SLACK_MSG_LEN
             clients[msg['sender']].chat_postMessage(  # type: ignore
                 channel=config.DISCORD_CHANNEL_MAP[msg['channel_id']],

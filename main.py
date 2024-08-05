@@ -5,6 +5,7 @@ from time import sleep
 
 from dotenv import load_dotenv
 from discord_bot import init_bot
+from pipe import recv_discord_msg, recv_slack_msg
 from slack_bot import run_app
 
 import config
@@ -67,17 +68,10 @@ class Runner:
         # information than just the raw messages (sender, attachments, etc...)
         while True:
             sleep(1)
-            if self.DISCORD_PIPE.poll():
-                msg = self.DISCORD_PIPE.recv()
-
-                if len(msg["content"]) > 0:
-                    self.SLACK_PIPE.send(msg)
-
-            if self.SLACK_PIPE.poll():
-                msg = self.SLACK_PIPE.recv()
-
-                if len(msg["content"]) > 0:
-                    self.DISCORD_PIPE.send(msg)
+            if (discord_msg := recv_discord_msg(self.DISCORD_PIPE)) is not None:
+                self.SLACK_PIPE.send(discord_msg)
+            if (slack_msg := recv_slack_msg(self.SLACK_PIPE)) is not None:
+                self.DISCORD_PIPE.send(slack_msg)
 
     def run_discord_bot(self) -> None:
         self.DISCORD_BOT.run(self._DISCORD_TOKEN)

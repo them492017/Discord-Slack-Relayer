@@ -60,7 +60,7 @@ class MyClient(discord.Client):
         })
 
     async def relay_msg(self, msg: RelayedSlackMessage, max_len: int = 2000) -> None:
-        if msg['channel_id'] not in self.SLACK_CHANNEL_MAP:
+        if len(msg['content']) == 0 or msg['channel_id'] not in self.SLACK_CHANNEL_MAP:
             return
 
         mapped_id = self.SLACK_CHANNEL_MAP[msg['channel_id']]
