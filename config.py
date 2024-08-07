@@ -1,8 +1,27 @@
-CONFIG = {
-    "DISCORD_RELEVANT_CHANNEL_ID": 0,
-    "SLACK_RELEVANT_CHANNEL_ID": "",
-    "SLACK_TUTOR_ID": "",
-    "DISCORD_SLACK_USER_MAP": {
-        "name": "slack_id"
-    }
+# DISCORD_RELEVANT_CHANNEL_ID = 0,
+# SLACK_RELEVANT_CHANNEL_ID = "",
+SLACK_TUTOR_ID = "",
+
+DISCORD_USER_MAP = {
+    0: "",
 }
+
+SLACK_USER_MAP = {
+    "": 0,
+}
+
+DISCORD_CHANNEL_MAP = {
+    0: "",
+}
+
+SLACK_CHANNEL_MAP = {
+    "": 0,
+}
+
+SLACK_BOT_ID = {
+    "": True,
+}
+
+SLACK_TOKEN_ENV_VARS = [
+    "SLACK_BOT_TOKEN",
+]

@@ -1,4 +1,0 @@
-export DISCORD_TOKEN=""
-export SLACK_BOT_TOKEN=""
-export SLACK_SIGNING_SECRET=""
-export SLACK_SOCKET_TOKEN=""

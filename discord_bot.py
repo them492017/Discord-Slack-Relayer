@@ -1,79 +1,98 @@
-# TODO LIST (no particular order)
-# Dealing with attachment.
-# Dealing with all types of mentions.
+# TODO LIST (no particular order) Dealing with attachment. Dealing with all types of mentions.
 # Dealing with edit/delete and syncing with Slack.
 # Dealing with reply and thread.
-import requests
-import json
-from typing import *
+from typing import Any, TYPE_CHECKING
+import datetime
 
 import discord
+from discord.client import NotFound
 from discord.ext import tasks
 
-from config import CONFIG
+import config
+from pipe import RelayedSlackMessage, send_discord_msg, recv_slack_msg
+
+if TYPE_CHECKING:
+    from multiprocessing.connection import Connection
+
 
 # Task that will be executed periodically.
 # Docs: https://discordpy.readthedocs.io/en/latest/ext/tasks/index.html
 # Poll for messages then relay to Discord.
 @tasks.loop(seconds=2.0)
-async def poll_msg(pipe: 'Pipe', discord_client: 'MyClient'):
-    if not pipe.poll():
-        return
-    msg = pipe.recv()
-    await discord_client.relay_msg(msg["content"], msg["channel"])
+async def poll_msg(pipe: 'Connection', discord_client: 'MyClient') -> None:
+    if (msg := recv_slack_msg(pipe)) is not None:
+        await discord_client.relay_msg(msg)
+
 
 # Docs for Discord py: https://discordpy.readthedocs.io/en/stable/
 class MyClient(discord.Client):
+    # Map from Slack's user_id to Discord's user_id
+    SLACK_USER_MAP: dict[str, int] = config.SLACK_USER_MAP
     # This is for mention mapping.
-    # Map from Discord's username to Slack's id
-    USER_MAP: Dict[str, str] = CONFIG["DISCORD_SLACK_USER_MAP"]
-    # Map from Discord's username to initial.
-    # Used to point to the correct bot.
-    NAME_INITIAL_MAP: Dict[str, str] = CONFIG["DISCORD_NAME_INITIAL_MAP"]
+    # Map from Discord's user_id to Slack's id
+    DISCORD_USER_MAP: dict[int, str] = config.DISCORD_USER_MAP
     # # The channel the messages are to be relayed from Slack to Discord.
-    # # If we want to have multiple channels then we can define a mapping 
+    # # If we want to have multiple channels then we can define a mapping
     # # between channels.
-    # RELEVANT_CHANNEL_ID = CONFIG["DISCORD_RELEVANT_CHANNEL_ID"]
-    CHANNEL_MAP: Dict[str, str] = CONFIG["CHANNEL_MAP"]
-    
-    def __init__(self, pipe,  **kwargs):
+    # RELEVANT_CHANNEL_ID = config.DISCORD_RELEVANT_CHANNEL_ID
+    SLACK_CHANNEL_MAP: dict[str, int] = config.SLACK_CHANNEL_MAP
+
+    user_cache: dict[int, discord.User]
+
+    def __init__(self, pipe: 'Connection', **kwargs: Any) -> None:
         super().__init__(**kwargs)
         # Relevant channel to relay messages from Slack
         # Prob general idk
-        self.relevant_channels = {}
+        self.relevant_channels: dict[str, discord.TextChannel] = {}
         self.pipe = pipe
+        self.user_cache = {}
 
     # This is for cosmetics.
-    async def on_ready(self):
+    async def on_ready(self) -> None:
         print(f'Logged on as {self.user}!')
 
     # Function that runs whenever a message is sent.
-    async def on_message(self, message: discord.Message):
-
+    async def on_message(self, message: discord.Message) -> None:
         if (message.author == self.user):
             return
 
         # print(message.attachments)
-        new_msg = self.mention_replace(message)
-        sender = self.NAME_INITIAL_MAP[message.author.name]
-        channel_name = message.channel.name
-        self.pipe.send(
-            {
-                "content": new_msg,
-                "sender": sender,
-                "channel": channel_name
-            }
-        )
+        send_discord_msg(self.pipe, {
+            "content": self.mention_replace(message),
+            "sender_id": message.author.id,
+            "channel_id": message.channel.id
+        })
 
-    async def relay_msg(self, msg: str, channel_id: str):
-        channel_id = self.CHANNEL_MAP[channel_id]
-        if channel_id not in self.relevant_channels:
-            channel = await self.fetch_channel(channel_id)
-            self.relevant_channels[channel_id] = channel
+    async def relay_msg(self, msg: RelayedSlackMessage, max_len: int = 2000) -> None:
+        if len(msg['content']) == 0 or msg['channel_id'] not in self.SLACK_CHANNEL_MAP:
+            return
 
-        await self.relevant_channels[channel_id].send(
-            content=msg
-        )
+        mapped_id = self.SLACK_CHANNEL_MAP[msg['channel_id']]
+
+        if msg['channel_id'] not in self.relevant_channels:
+            channel = await self.fetch_channel(mapped_id)
+            if isinstance(channel, discord.TextChannel):  # this should always hold
+                self.relevant_channels[msg['channel_id']] = channel
+            else:
+                return
+
+        discord_id = self.SLACK_USER_MAP[msg['sender_id']]
+
+        if discord_id not in self.user_cache:
+            try:
+                self.user_cache[discord_id] = await self.fetch_user(discord_id)
+            except NotFound:
+                print(f"Could not find user with id {discord_id}")
+                return
+
+        author = self.user_cache[discord_id]
+        chunks = [msg['content'][i:i + max_len]
+                  for i in range(0, len(msg['content']), max_len)]
+
+        for chunk in chunks:
+            await self.relevant_channels[msg['channel_id']].send(
+                embed=self.echoed_message_embed(author, chunk)
+            )
 
     # The docs use this method to initiate the task.
     # Gonna do the same.
@@ -87,17 +106,24 @@ class MyClient(discord.Client):
         msg_str = msg.content
 
         for user in mentions:
-            if user.name not in self.USER_MAP:
+            if user.id not in self.DISCORD_USER_MAP:
                 continue
             msg_str = msg_str.replace(
-                f"<@{user.id}>", f"<@{self.USER_MAP[user.name]}>"
+                f"<@{user.id}>", f"<@{self.DISCORD_USER_MAP[user.id]}>"
             )
 
         return msg_str
 
+    def echoed_message_embed(self, author: discord.User | discord.Member,
+                             text: str) -> discord.Embed:
+        return discord.Embed(
+            description=text or "",
+            color=author.colour,
+            timestamp=datetime.datetime.now(datetime.UTC),
+        ).set_author(name=author.name, icon_url=author.display_avatar.url)
 
 
-def init_bot(pipe) -> MyClient:
+def init_bot(pipe: 'Connection') -> MyClient:
     intents = discord.Intents.default()
     intents.message_content = True
     client = MyClient(pipe, intents=intents)
