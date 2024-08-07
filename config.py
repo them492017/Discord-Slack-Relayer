@@ -18,10 +18,6 @@ SLACK_CHANNEL_MAP = {
     "": 0,
 }
 
-SLACK_BOT_ID = {
-    "": True,
+SLACK_TOKEN_ENV_VARS = {
+    "SLACK_BOT_TOKEN": 0,
 }
-
-SLACK_TOKEN_ENV_VARS = [
-    "SLACK_BOT_TOKEN",
-]
