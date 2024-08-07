@@ -76,22 +76,28 @@ class MyClient(discord.Client):
             else:
                 return
 
-        discord_id = self.SLACK_USER_MAP[msg['sender_id']]
+        discord_id = None
+        author = None
 
-        if discord_id not in self.user_cache:
+        if msg['sender_id'] in self.SLACK_USER_MAP:
+            discord_id = self.SLACK_USER_MAP[msg['sender_id']]
+
+        if discord_id is not None and discord_id not in self.user_cache:
             try:
                 self.user_cache[discord_id] = await self.fetch_user(discord_id)
+                author = self.user_cache[discord_id]
             except NotFound:
                 print(f"Could not find user with id {discord_id}")
                 return
-
-        author = self.user_cache[discord_id]
+            
         chunks = [msg['content'][i:i + max_len]
                   for i in range(0, len(msg['content']), max_len)]
 
         for chunk in chunks:
             await self.relevant_channels[msg['channel_id']].send(
-                embed=self.echoed_message_embed(author, chunk)
+                embed=self.echoed_message_embed(
+                    author, chunk, msg['message_url']
+                )
             )
 
     # The docs use this method to initiate the task.
@@ -114,13 +120,26 @@ class MyClient(discord.Client):
 
         return msg_str
 
-    def echoed_message_embed(self, author: discord.User | discord.Member,
-                             text: str) -> discord.Embed:
+    def echoed_message_embed(self, 
+                             author: discord.User | discord.Member | None,
+                             text: str,
+                             url: str) -> discord.Embed:
+        color = discord.Color.default()
+        name = "Anon"
+        icon_url = None
+        
+        if author is not None:
+            color = author.color
+            name = author.name
+            icon_url = author.display_avatar.url
+        
         return discord.Embed(
-            description=text or "",
-            color=author.colour,
-            timestamp=datetime.datetime.now(datetime.UTC),
-        ).set_author(name=author.name, icon_url=author.display_avatar.url)
+                title="Relayed From Slacks",
+                description=text or "",
+                color=color,
+                timestamp=datetime.datetime.now(datetime.timezone.utc),
+                url=url
+            ).set_author(name=name, icon_url=icon_url)
 
 
 def init_bot(pipe: 'Connection') -> MyClient:
