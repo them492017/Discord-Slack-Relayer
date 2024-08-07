@@ -5,6 +5,7 @@ from typing import Any, TYPE_CHECKING
 import datetime
 
 import discord
+from discord.client import NotFound
 from discord.ext import tasks
 
 import config
@@ -36,12 +37,15 @@ class MyClient(discord.Client):
     # RELEVANT_CHANNEL_ID = config.DISCORD_RELEVANT_CHANNEL_ID
     SLACK_CHANNEL_MAP: dict[str, int] = config.SLACK_CHANNEL_MAP
 
+    user_cache: dict[int, discord.User]
+
     def __init__(self, pipe: 'Connection', **kwargs: Any) -> None:
         super().__init__(**kwargs)
         # Relevant channel to relay messages from Slack
         # Prob general idk
         self.relevant_channels: dict[str, discord.TextChannel] = {}
         self.pipe = pipe
+        self.user_cache = {}
 
     # This is for cosmetics.
     async def on_ready(self) -> None:
@@ -72,13 +76,23 @@ class MyClient(discord.Client):
             else:
                 return
 
-        if (author := self.get_user(self.SLACK_USER_MAP[msg['sender_id']])) is not None:
-            chunks = [msg['content'][i:i + max_len]
-                      for i in range(0, len(msg['content']), max_len)]
-            for chunk in chunks:
-                await self.relevant_channels[msg['channel_id']].send(
-                    embed=self.echoed_message_embed(author, chunk)
-                )
+        discord_id = self.SLACK_USER_MAP[msg['sender_id']]
+
+        if discord_id not in self.user_cache:
+            try:
+                self.user_cache[discord_id] = await self.fetch_user(discord_id)
+            except NotFound:
+                print(f"Could not find user with id {discord_id}")
+                return
+
+        author = self.user_cache[discord_id]
+        chunks = [msg['content'][i:i + max_len]
+                  for i in range(0, len(msg['content']), max_len)]
+
+        for chunk in chunks:
+            await self.relevant_channels[msg['channel_id']].send(
+                embed=self.echoed_message_embed(author, chunk)
+            )
 
     # The docs use this method to initiate the task.
     # Gonna do the same.
