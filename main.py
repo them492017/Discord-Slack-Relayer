@@ -29,7 +29,7 @@ class Runner:
 
         for name in config.SLACK_TOKEN_ENV_VARS:
             if (mapped_name := os.environ.get(name)) is not None:
-                self._SLACK_PEOPLE_TOKEN_MAP[name[-1]] = mapped_name
+                self._SLACK_PEOPLE_TOKEN_MAP[name] = mapped_name
             else:
                 raise ValueError(f"No valid mapped name provided for {name}")
 

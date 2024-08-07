@@ -13,7 +13,6 @@ from pipe import recv_discord_msg, send_slack_msg
 if TYPE_CHECKING:
     from multiprocessing.connection import Connection
 
-
 # All the async code was kinda taken from this Github issue.
 # https://github.com/slackapi/bolt-python/issues/592#issuecomment-1042368085
 async def run_app(
@@ -23,9 +22,11 @@ async def run_app(
     socket_token: str
 ) -> None:
     CLIENTS = {
-        bot_name: WebClient(token=bot_tokens[bot_name])
+        config.SLACK_TOKEN_ENV_VARS[bot_name]: WebClient(token=bot_tokens[bot_name])
         for bot_name in bot_tokens
     }
+
+    MAIN_CLIENT: WebClient = iter(CLIENTS.values()).__next__()
 
     app = AsyncApp(
         token=os.environ.get("MAIN_SLACK_TOKEN"),
@@ -33,16 +34,25 @@ async def run_app(
     )
 
     @app.event("message")  # type: ignore
-    async def receive_messages(message: dict[str, Any], context: BoltContext) -> None:  # type: ignore
-        # If not from the tutor then don't relay to Discord.
-        if context.user_id is None or context.user_id in config.SLACK_BOT_ID:
+    async def receive_messages( # type: ignore
+        message: dict[str, Any], context: BoltContext,
+        payload: dict[str, Any]
+    ) -> None:  
+        # If it is from one of the bots then don't relay to Discord.
+        if "bot_id" in payload:
             return
+        
+        message_url = MAIN_CLIENT.chat_getPermalink( # type: ignore
+            channel=context.channel_id or "",
+            message_ts=payload["ts"]
+        )
 
         # Possibly make it able to deal with attachments.
         send_slack_msg(pipe, {
             "content": message['text'],
-            "sender_id": context.user_id,
+            "sender_id": context.user_id, # type: ignore
             "channel_id": context.channel_id or "",
+            "message_url": message_url["permalink"]
         })
 
     handler = AsyncSocketModeHandler(
@@ -56,17 +66,16 @@ async def run_app(
 
 # The background task.
 # Poll for messages and relay to Slack basically.
-async def poll_msg(pipe: 'Connection', clients: dict[str, WebClient]) -> None:
+async def poll_msg(pipe: 'Connection', clients: dict[int, WebClient]) -> None:
     while True:
         await asyncio.sleep(2)
-
         # Relevant Slack API docs
         # https://slack.dev/python-slack-sdk/web/index.html#messaging
         if (msg := recv_discord_msg(pipe)) is not None:
             if len(msg) == 0:
                 continue
             # assert len(msg['content']) < MAX_SLACK_MSG_LEN
-            clients[msg['sender']].chat_postMessage(  # type: ignore
+            clients[msg['sender_id']].chat_postMessage(  # type: ignore
                 channel=config.DISCORD_CHANNEL_MAP[msg['channel_id']],
                 text=msg['content']
             )
