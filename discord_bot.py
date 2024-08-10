@@ -56,7 +56,9 @@ class MyClient(discord.Client):
         if (message.author == self.user):
             return
 
-        # print(message.attachments)
+        if message.channel.id not in config.DISCORD_CHANNEL_MAP:
+            return
+        
         send_discord_msg(self.pipe, {
             "content": self.mention_replace(message),
             "sender_id": message.author.id,
