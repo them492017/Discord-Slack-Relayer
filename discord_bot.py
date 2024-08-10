@@ -96,7 +96,7 @@ class MyClient(discord.Client):
         for chunk in chunks:
             await self.relevant_channels[msg['channel_id']].send(
                 embed=self.echoed_message_embed(
-                    author, chunk, msg['message_url']
+                    author, chunk
                 )
             )
 
@@ -122,8 +122,7 @@ class MyClient(discord.Client):
 
     def echoed_message_embed(self, 
                              author: discord.User | discord.Member | None,
-                             text: str,
-                             url: str) -> discord.Embed:
+                             text: str) -> discord.Embed:
         color = discord.Color.default()
         name = "Anon"
         icon_url = None
@@ -137,8 +136,7 @@ class MyClient(discord.Client):
                 title="Relayed From Slacks",
                 description=text or "",
                 color=color,
-                timestamp=datetime.datetime.now(datetime.timezone.utc),
-                url=url
+                timestamp=datetime.datetime.now(datetime.timezone.utc)
             ).set_author(name=name, icon_url=icon_url)
 
 

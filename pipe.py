@@ -12,7 +12,6 @@ class RelayedSlackMessage(TypedDict):
     content: str
     sender_id: str
     channel_id: str
-    message_url: str
 
 
 def send_discord_msg(pipe: Connection, msg_details: RelayedDiscordMessage) -> None:

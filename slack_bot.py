@@ -26,7 +26,7 @@ async def run_app(
         for bot_name in bot_tokens
     }
 
-    MAIN_CLIENT: WebClient = iter(CLIENTS.values()).__next__()
+    # MAIN_CLIENT: WebClient = iter(CLIENTS.values()).__next__()
 
     app = AsyncApp(
         token=os.environ.get("MAIN_SLACK_TOKEN"),
@@ -41,18 +41,12 @@ async def run_app(
         # If it is from one of the bots then don't relay to Discord.
         if "bot_id" in payload:
             return
-        
-        message_url = MAIN_CLIENT.chat_getPermalink( # type: ignore
-            channel=context.channel_id or "",
-            message_ts=payload["ts"]
-        )
 
         # Possibly make it able to deal with attachments.
         send_slack_msg(pipe, {
             "content": message['text'],
             "sender_id": context.user_id, # type: ignore
-            "channel_id": context.channel_id or "",
-            "message_url": message_url["permalink"]
+            "channel_id": context.channel_id or ""
         })
 
     handler = AsyncSocketModeHandler(
