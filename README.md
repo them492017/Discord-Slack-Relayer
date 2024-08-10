@@ -18,11 +18,8 @@ Afterwards, run
 pip install -r requirements.txt
 ```
 
-Remember to get the required tokens/credentials and put them into `env_var.sh` and run the command to export environment variables.
+Remember to get the required tokens/credentials and put them into `.env`.
 
-```
-source env_var.sh
-```
 
 Also remember to change the entries in config.py accordingly.
 
