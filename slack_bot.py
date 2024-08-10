@@ -41,6 +41,9 @@ async def run_app(
         # If it is from one of the bots then don't relay to Discord.
         if "bot_id" in payload:
             return
+        
+        if "subtype" in message:
+            return
 
         # Possibly make it able to deal with attachments.
         send_slack_msg(pipe, {
